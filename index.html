@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>빙고게임 생성기</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        
+        .controls {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        .verify-btn {
+            background-color: #2196F3;
+        }
+        
+        .verify-btn:hover {
+            background-color: #1976D2;
+        }
+        
+        .preview {
+            margin-top: 20px;
+        }
+        
+        /* A4 페이지 스타일 */
+        .page {
+            width: 210mm;
+            height: 297mm;
+            margin: 0 auto 20px;
+            background: white;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr 1fr;
+            gap: 5mm;
+            padding: 10mm;
+            box-sizing: border-box;
+            border: 1px solid #ddd;
+        }
+        
+        .bingo-card {
+            border: 2px solid #333;
+            background: white;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .bingo-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: repeat(5, 1fr);
+            flex: 1;
+        }
+        
+        .bingo-cell {
+            border: 1px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            min-height: 8mm;
+        }
+        
+        .verification-results {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #28a745;
+        }
+        
+        .error {
+            border-left-color: #dc3545;
+            background-color: #f8d7da;
+        }
+        
+        @media print {
+            body {
+                margin: 0;
+                background: white;
+            }
+            
+            .container {
+                box-shadow: none;
+                margin: 0;
+                padding: 0;
+            }
+            
+            .controls, .verification-results {
+                display: none;
+            }
+            
+            .page {
+                margin: 0;
+                border: none;
+                page-break-after: always;
+            }
+            
+            .page:last-child {
+                page-break-after: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>빙고게임 생성기</h1>
+        
+        <div class="controls">
+            <button onclick="generateBingoCards()">빙고게임 생성</button>
+            <button onclick="downloadPDF()" class="verify-btn">PDF 다운로드</button>
+            <button onclick="verifyCards()" class="verify-btn">검증하기</button>
+        </div>
+        
+        <div id="verification-results"></div>
+        <div id="preview" class="preview"></div>
+    </div>
+
+    <script>
+        let allBingoCards = [];
+        
+        // 1부터 30까지 숫자 중 25개를 랜덤으로 선택하는 함수
+        function generateRandomNumbers() {
+            const numbers = Array.from({length: 30}, (_, i) => i + 1);
+            const shuffled = numbers.sort(() => Math.random() - 0.5);
+            return shuffled.slice(0, 25);
+        }
+        
+        // 단일 빙고카드 생성
+        function createBingoCard() {
+            const numbers = generateRandomNumbers();
+            return numbers;
+        }
+        
+        // 빙고카드 HTML 생성
+        function createBingoCardHTML(cardNumbers, cardIndex) {
+            let html = `
+                <div class="bingo-card">
+                    <div class="bingo-grid">
+            `;
+            
+            cardNumbers.forEach(number => {
+                html += `<div class="bingo-cell">${number}</div>`;
+            });
+            
+            html += `
+                    </div>
+                </div>
+            `;
+            
+            return html;
+        }
+        
+        // 전체 빙고게임 생성 (10페이지 × 6게임 = 60게임)
+        function generateBingoCards() {
+            allBingoCards = [];
+            let html = '';
+            
+            for (let page = 0; page < 10; page++) {
+                html += `<div class="page">`;
+                
+                for (let card = 0; card < 6; card++) {
+                    const cardNumbers = createBingoCard();
+                    allBingoCards.push(cardNumbers);
+                    const cardIndex = page * 6 + card;
+                    html += createBingoCardHTML(cardNumbers, cardIndex);
+                }
+                
+                html += `</div>`;
+            }
+            
+            document.getElementById('preview').innerHTML = html;
+        }
+        
+        // PDF 다운로드 기능
+        function downloadPDF() {
+            if (allBingoCards.length === 0) {
+                alert('먼저 빙고게임을 생성해주세요.');
+                return;
+            }
+            
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+            
+            for (let page = 0; page < 10; page++) {
+                if (page > 0) {
+                    doc.addPage();
+                }
+                
+                // 페이지 제목
+                doc.setFontSize(16);
+                doc.text(`BINGO GAMES - Page ${page + 1}`, 105, 15, { align: 'center' });
+                
+                // 6개의 빙고카드 배치 (2열 3행)
+                for (let cardIndex = 0; cardIndex < 6; cardIndex++) {
+                    const cardNumbers = allBingoCards[page * 6 + cardIndex];
+                    const col = cardIndex % 2;
+                    const row = Math.floor(cardIndex / 2);
+                    
+                    const startX = 15 + col * 90;
+                    const startY = 30 + row * 80;
+                    
+                    // 빙고 그리드
+                    doc.setTextColor(0, 0, 0);
+                    doc.setFontSize(16);
+                    
+                    for (let i = 0; i < 25; i++) {
+                        const cellCol = i % 5;
+                        const cellRow = Math.floor(i / 5);
+                        const cellX = startX + cellCol * 16;
+                        const cellY = startY + cellRow * 12;
+                        
+                        // 셀 테두리
+                        doc.rect(cellX, cellY, 16, 12);
+                        
+                        // 숫자
+                        doc.text(cardNumbers[i].toString(), cellX + 8, cellY + 8, { align: 'center' });
+                    }
+                }
+            }
+            
+            doc.save('빙고게임_10페이지.pdf');
+        }
+        
+        // 검증 기능
+        function verifyCards() {
+            if (allBingoCards.length === 0) {
+                alert('먼저 빙고게임을 생성해주세요.');
+                return;
+            }
+            
+            const results = [];
+            let totalErrors = 0;
+            
+            allBingoCards.forEach((card, index) => {
+                const errors = [];
+                
+                // 1. 25개 숫자 확인
+                if (card.length !== 25) {
+                    errors.push(`카드 ${index + 1}: 숫자 개수가 ${card.length}개입니다. (25개여야 함)`);
+                }
+                
+                // 2. 중복 숫자 확인
+                const uniqueNumbers = [...new Set(card)];
+                if (uniqueNumbers.length !== card.length) {
+                    errors.push(`카드 ${index + 1}: 중복된 숫자가 있습니다.`);
+                }
+                
+                // 3. 숫자 범위 확인 (1-30)
+                const invalidNumbers = card.filter(num => num < 1 || num > 30);
+                if (invalidNumbers.length > 0) {
+                    errors.push(`카드 ${index + 1}: 범위를 벗어난 숫자가 있습니다. (${invalidNumbers.join(', ')})`);
+                }
+                
+                if (errors.length > 0) {
+                    results.push(...errors);
+                    totalErrors += errors.length;
+                }
+            });
+            
+            // 결과 표시
+            const resultsDiv = document.getElementById('verification-results');
+            
+            if (totalErrors === 0) {
+                resultsDiv.innerHTML = `
+                    <div class="verification-results">
+                        <h3>✅ 검증 완료</h3>
+                        <p>총 ${allBingoCards.length}개의 빙고카드가 모두 올바르게 생성되었습니다.</p>
+                        <ul>
+                            <li>각 카드는 25개의 숫자를 포함합니다.</li>
+                            <li>모든 숫자는 1-30 범위 내에 있습니다.</li>
+                            <li>각 카드 내에서 중복된 숫자가 없습니다.</li>
+                        </ul>
+                    </div>
+                `;
+            } else {
+                resultsDiv.innerHTML = `
+                    <div class="verification-results error">
+                        <h3>❌ 검증 실패</h3>
+                        <p>총 ${totalErrors}개의 오류가 발견되었습니다:</p>
+                        <ul>
+                            ${results.map(error => `<li>${error}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+        }
+        
+        // 페이지 로드시 자동으로 빙고게임 생성
+        window.onload = function() {
+            generateBingoCards();
+        };
+    </script>
+</body>
+</html>
